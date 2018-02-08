@@ -39,9 +39,9 @@
 #include "cartographer/mapping_3d/pose_graph/optimization_problem.h"
 #include "cartographer/mapping_3d/submaps.h"
 #include "cartographer/sensor/fixed_frame_pose_data.h"
-#include "cartographer/sensor/landmark_data.h"
 #include "cartographer/sensor/odometry_data.h"
 #include "cartographer/sensor/point_cloud.h"
+#include "cartographer/transform/rigid_transform.h"
 #include "cartographer/transform/transform.h"
 
 namespace cartographer {
@@ -85,9 +85,6 @@ class PoseGraph : public mapping::PoseGraph {
       int trajectory_id,
       const sensor::FixedFramePoseData& fixed_frame_pose_data) override
       EXCLUDES(mutex_);
-  void AddLandmarkData(int trajectory_id,
-                       const sensor::LandmarkData& landmark_data) override
-      EXCLUDES(mutex_);
 
   void FinishTrajectory(int trajectory_id) override;
   bool IsTrajectoryFinished(int trajectory_id) override;
@@ -115,8 +112,6 @@ class PoseGraph : public mapping::PoseGraph {
   GetTrajectoryNodes() override EXCLUDES(mutex_);
   mapping::MapById<mapping::NodeId, mapping::TrajectoryNodePose>
   GetTrajectoryNodePoses() override EXCLUDES(mutex_);
-  std::map<std::string, transform::Rigid3d> GetLandmarkPoses() override
-      EXCLUDES(mutex_);
   sensor::MapByTime<sensor::ImuData> GetImuData() override EXCLUDES(mutex_);
   sensor::MapByTime<sensor::OdometryData> GetOdometryData() override
       EXCLUDES(mutex_);
@@ -249,10 +244,6 @@ class PoseGraph : public mapping::PoseGraph {
   // Global submap poses currently used for displaying data.
   mapping::MapById<mapping::SubmapId, pose_graph::SubmapData>
       global_submap_poses_ GUARDED_BY(mutex_);
-
-  // Global landmark poses with all observations.
-  std::map<std::string /* landmark ID */, PoseGraph::LandmarkNode>
-      landmark_nodes_ GUARDED_BY(mutex_);
 
   // List of all trimmers to consult when optimizations finish.
   std::vector<std::unique_ptr<mapping::PoseGraphTrimmer>> trimmers_

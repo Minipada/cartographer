@@ -27,121 +27,103 @@ namespace mapping {
 TrajectoryBuilderStub::TrajectoryBuilderStub(
     std::shared_ptr<grpc::Channel> client_channel, const int trajectory_id,
     LocalSlamResultCallback local_slam_result_callback)
-    : client_channel_(client_channel),
-      trajectory_id_(trajectory_id),
-      receive_local_slam_results_client_(client_channel_) {
+    : client_channel_(client_channel), trajectory_id_(trajectory_id) {
+  stub_ = proto::MapBuilderService::NewStub(client_channel_);
+  CHECK(stub_) << "Failed to create stub.";
   if (local_slam_result_callback) {
     proto::ReceiveLocalSlamResultsRequest request;
     request.set_trajectory_id(trajectory_id);
-    receive_local_slam_results_client_.Write(request);
-    auto* receive_local_slam_results_client_ptr =
-        &receive_local_slam_results_client_;
-    receive_local_slam_results_thread_ =
+    local_slam_result_reader_.client_reader = stub_->ReceiveLocalSlamResults(
+        &local_slam_result_reader_.client_context, request);
+    auto* client_reader_ptr = local_slam_result_reader_.client_reader.get();
+    local_slam_result_reader_.thread =
         cartographer::common::make_unique<std::thread>(
-            [receive_local_slam_results_client_ptr,
-             local_slam_result_callback]() {
-              RunLocalSlamResultsReader(receive_local_slam_results_client_ptr,
-                                        local_slam_result_callback);
+            [client_reader_ptr, local_slam_result_callback]() {
+              RunLocalSlamResultReader(client_reader_ptr,
+                                       local_slam_result_callback);
             });
   }
 }
 
 TrajectoryBuilderStub::~TrajectoryBuilderStub() {
-  if (receive_local_slam_results_thread_) {
-    receive_local_slam_results_thread_->join();
+  if (local_slam_result_reader_.thread) {
+    local_slam_result_reader_.thread->join();
   }
-  if (add_rangefinder_client_) {
-    CHECK(add_rangefinder_client_->WritesDone());
-    CHECK(add_rangefinder_client_->Finish().ok());
+  if (rangefinder_writer_.client_writer) {
+    CHECK(rangefinder_writer_.client_writer->WritesDone());
+    CHECK(rangefinder_writer_.client_writer->Finish().ok());
   }
-  if (add_imu_client_) {
-    CHECK(add_imu_client_->WritesDone());
-    CHECK(add_imu_client_->Finish().ok());
+  if (imu_writer_.client_writer) {
+    CHECK(imu_writer_.client_writer->WritesDone());
+    CHECK(imu_writer_.client_writer->Finish().ok());
   }
-  if (add_odometry_client_) {
-    CHECK(add_odometry_client_->WritesDone());
-    CHECK(add_odometry_client_->Finish().ok());
+  if (odometry_writer_.client_writer) {
+    CHECK(odometry_writer_.client_writer->WritesDone());
+    CHECK(odometry_writer_.client_writer->Finish().ok());
   }
-  if (add_landmark_client_) {
-    CHECK(add_landmark_client_->WritesDone());
-    CHECK(add_landmark_client_->Finish().ok());
-  }
-  if (add_fixed_frame_pose_client_) {
-    CHECK(add_fixed_frame_pose_client_->WritesDone());
-    CHECK(add_fixed_frame_pose_client_->Finish().ok());
+  if (fixed_frame_writer_.client_writer) {
+    CHECK(fixed_frame_writer_.client_writer->WritesDone());
+    CHECK(fixed_frame_writer_.client_writer->Finish().ok());
   }
 }
 
 void TrajectoryBuilderStub::AddSensorData(
     const std::string& sensor_id,
     const cartographer::sensor::TimedPointCloudData& timed_point_cloud_data) {
-  if (!add_rangefinder_client_) {
-    add_rangefinder_client_ = cartographer::common::make_unique<
-        framework::Client<handlers::AddRangefinderDataHandler>>(
-        client_channel_);
+  if (!rangefinder_writer_.client_writer) {
+    rangefinder_writer_.client_writer = stub_->AddRangefinderData(
+        &rangefinder_writer_.client_context, &rangefinder_writer_.response);
+    CHECK(rangefinder_writer_.client_writer);
   }
   proto::AddRangefinderDataRequest request;
-  sensor::CreateAddRangeFinderDataRequest(
+  CreateAddRangeFinderDataRequest(
       sensor_id, trajectory_id_,
       cartographer::sensor::ToProto(timed_point_cloud_data), &request);
-  add_rangefinder_client_->Write(request);
+  rangefinder_writer_.client_writer->Write(request);
 }
 
 void TrajectoryBuilderStub::AddSensorData(
     const std::string& sensor_id,
     const cartographer::sensor::ImuData& imu_data) {
-  if (!add_imu_client_) {
-    add_imu_client_ = cartographer::common::make_unique<
-        framework::Client<handlers::AddImuDataHandler>>(client_channel_);
+  if (!imu_writer_.client_writer) {
+    imu_writer_.client_writer =
+        stub_->AddImuData(&imu_writer_.client_context, &imu_writer_.response);
+    CHECK(imu_writer_.client_writer);
   }
   proto::AddImuDataRequest request;
-  sensor::CreateAddImuDataRequest(sensor_id, trajectory_id_,
-                                  cartographer::sensor::ToProto(imu_data),
-                                  &request);
-  add_imu_client_->Write(request);
+  CreateAddImuDataRequest(sensor_id, trajectory_id_,
+                          cartographer::sensor::ToProto(imu_data), &request);
+  imu_writer_.client_writer->Write(request);
 }
 
 void TrajectoryBuilderStub::AddSensorData(
     const std::string& sensor_id,
     const cartographer::sensor::OdometryData& odometry_data) {
-  if (!add_odometry_client_) {
-    add_odometry_client_ = cartographer::common::make_unique<
-        framework::Client<handlers::AddOdometryDataHandler>>(client_channel_);
+  if (!odometry_writer_.client_writer) {
+    odometry_writer_.client_writer = stub_->AddOdometryData(
+        &odometry_writer_.client_context, &odometry_writer_.response);
+    CHECK(odometry_writer_.client_writer);
   }
   proto::AddOdometryDataRequest request;
-  sensor::CreateAddOdometryDataRequest(
-      sensor_id, trajectory_id_, cartographer::sensor::ToProto(odometry_data),
-      &request);
-  add_odometry_client_->Write(request);
+  CreateAddOdometryDataRequest(sensor_id, trajectory_id_,
+                               cartographer::sensor::ToProto(odometry_data),
+                               &request);
+  odometry_writer_.client_writer->Write(request);
 }
 
 void TrajectoryBuilderStub::AddSensorData(
     const std::string& sensor_id,
     const cartographer::sensor::FixedFramePoseData& fixed_frame_pose) {
-  if (!add_fixed_frame_pose_client_) {
-    add_fixed_frame_pose_client_ = cartographer::common::make_unique<
-        framework::Client<handlers::AddFixedFramePoseDataHandler>>(
-        client_channel_);
+  if (!fixed_frame_writer_.client_writer) {
+    fixed_frame_writer_.client_writer = stub_->AddFixedFramePoseData(
+        &fixed_frame_writer_.client_context, &fixed_frame_writer_.response);
+    CHECK(fixed_frame_writer_.client_writer);
   }
   proto::AddFixedFramePoseDataRequest request;
-  sensor::CreateAddFixedFramePoseDataRequest(
+  CreateAddFixedFramePoseDataRequest(
       sensor_id, trajectory_id_,
       cartographer::sensor::ToProto(fixed_frame_pose), &request);
-  add_fixed_frame_pose_client_->Write(request);
-}
-
-void TrajectoryBuilderStub::AddSensorData(
-    const std::string& sensor_id,
-    const cartographer::sensor::LandmarkData& landmark_data) {
-  if (!add_landmark_client_) {
-    add_landmark_client_ = cartographer::common::make_unique<
-        framework::Client<handlers::AddLandmarkDataHandler>>(client_channel_);
-  }
-  proto::AddLandmarkDataRequest request;
-  sensor::CreateAddLandmarkDataRequest(
-      sensor_id, trajectory_id_, cartographer::sensor::ToProto(landmark_data),
-      &request);
-  add_landmark_client_->Write(request);
+  fixed_frame_writer_.client_writer->Write(request);
 }
 
 void TrajectoryBuilderStub::AddLocalSlamResultData(
@@ -150,11 +132,11 @@ void TrajectoryBuilderStub::AddLocalSlamResultData(
   LOG(FATAL) << "Not implemented";
 }
 
-void TrajectoryBuilderStub::RunLocalSlamResultsReader(
-    framework::Client<handlers::ReceiveLocalSlamResultsHandler>* client,
+void TrajectoryBuilderStub::RunLocalSlamResultReader(
+    grpc::ClientReader<proto::ReceiveLocalSlamResultsResponse>* client_reader,
     LocalSlamResultCallback local_slam_result_callback) {
   proto::ReceiveLocalSlamResultsResponse response;
-  while (client->Read(&response)) {
+  while (client_reader->Read(&response)) {
     int trajectory_id = response.trajectory_id();
     cartographer::common::Time time =
         cartographer::common::FromUniversal(response.timestamp());
@@ -172,7 +154,7 @@ void TrajectoryBuilderStub::RunLocalSlamResultsReader(
     local_slam_result_callback(trajectory_id, time, local_pose, range_data,
                                std::move(insertion_result));
   }
-  client->Finish();
+  client_reader->Finish();
 }
 
 }  // namespace mapping

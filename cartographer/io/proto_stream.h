@@ -20,8 +20,6 @@
 #include <fstream>
 
 #include "cartographer/common/port.h"
-#include "cartographer/io/proto_stream_interface.h"
-#include "google/protobuf/message.h"
 
 namespace cartographer {
 namespace io {
@@ -32,16 +30,24 @@ namespace io {
 //
 // TODO(whess): Compress the file instead of individual messages for better
 // compression performance? Should we use LZ4?
-class ProtoStreamWriter : public ProtoStreamWriterInterface {
+class ProtoStreamWriter {
  public:
   ProtoStreamWriter(const std::string& filename);
-  ~ProtoStreamWriter() = default;
+  ~ProtoStreamWriter();
 
   ProtoStreamWriter(const ProtoStreamWriter&) = delete;
   ProtoStreamWriter& operator=(const ProtoStreamWriter&) = delete;
 
-  void WriteProto(const google::protobuf::Message& proto) override;
-  bool Close() override;
+  // Serializes, compressed and writes the 'proto' to the file.
+  template <typename MessageType>
+  void WriteProto(const MessageType& proto) {
+    std::string uncompressed_data;
+    proto.SerializeToString(&uncompressed_data);
+    Write(uncompressed_data);
+  }
+
+  // This should be called to check whether writing was successful.
+  bool Close();
 
  private:
   void Write(const std::string& uncompressed_data);
@@ -50,16 +56,22 @@ class ProtoStreamWriter : public ProtoStreamWriterInterface {
 };
 
 // A reader of the format produced by ProtoStreamWriter.
-class ProtoStreamReader : public ProtoStreamReaderInterface {
+class ProtoStreamReader {
  public:
-  explicit ProtoStreamReader(const std::string& filename);
-  ~ProtoStreamReader() = default;
+  ProtoStreamReader(const std::string& filename);
+  ~ProtoStreamReader();
 
   ProtoStreamReader(const ProtoStreamReader&) = delete;
   ProtoStreamReader& operator=(const ProtoStreamReader&) = delete;
 
-  bool ReadProto(google::protobuf::Message* proto) override;
-  bool eof() const override;
+  template <typename MessageType>
+  bool ReadProto(MessageType* proto) {
+    std::string decompressed_data;
+    return Read(&decompressed_data) &&
+           proto->ParseFromString(decompressed_data);
+  }
+
+  bool eof() const;
 
  private:
   bool Read(std::string* decompressed_data);

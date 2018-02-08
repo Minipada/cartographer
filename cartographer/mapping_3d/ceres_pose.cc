@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#include "cartographer/mapping/pose_graph/ceres_pose.h"
+#include "cartographer/mapping_3d/ceres_pose.h"
 
 namespace cartographer {
-namespace mapping {
-namespace pose_graph {
+namespace mapping_3d {
 
 CeresPose::CeresPose(
     const transform::Rigid3d& rigid,
@@ -43,6 +42,5 @@ const transform::Rigid3d CeresPose::ToRigid() const {
       Eigen::Quaterniond(rotation[0], rotation[1], rotation[2], rotation[3]));
 }
 
-}  // namespace pose_graph
-}  // namespace mapping
+}  // namespace mapping_3d
 }  // namespace cartographer

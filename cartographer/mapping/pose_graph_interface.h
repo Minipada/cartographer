@@ -19,10 +19,8 @@
 
 #include <vector>
 
-#include "cartographer/common/optional.h"
 #include "cartographer/mapping/id.h"
 #include "cartographer/mapping/submaps.h"
-#include "cartographer/transform/rigid_transform.h"
 
 namespace cartographer {
 namespace mapping {
@@ -49,18 +47,6 @@ class PoseGraphInterface {
     // submap 'i') and inter-submap constraints (where node 'j' was not inserted
     // into submap 'i').
     enum Tag { INTRA_SUBMAP, INTER_SUBMAP } tag;
-  };
-
-  struct LandmarkNode {
-    struct LandmarkObservation {
-      int trajectory_id;
-      common::Time time;
-      transform::Rigid3d landmark_to_tracking_transform;
-      double translation_weight;
-      double rotation_weight;
-    };
-    std::vector<LandmarkObservation> landmark_observations;
-    common::optional<transform::Rigid3d> global_landmark_pose;
   };
 
   struct SubmapPose {
@@ -98,9 +84,6 @@ class PoseGraphInterface {
 
   // Returns the current optimized trajectory poses.
   virtual MapById<NodeId, TrajectoryNodePose> GetTrajectoryNodePoses() = 0;
-
-  // Returns the current optimized landmark poses.
-  virtual std::map<std::string, transform::Rigid3d> GetLandmarkPoses() = 0;
 
   // Checks if the given trajectory is finished.
   virtual bool IsTrajectoryFinished(int trajectory_id) = 0;

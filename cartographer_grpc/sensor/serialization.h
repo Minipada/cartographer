@@ -17,21 +17,17 @@
 #ifndef CARTOGRAPHER_GRPC_SENSOR_SERIALIZATION_H
 #define CARTOGRAPHER_GRPC_SENSOR_SERIALIZATION_H
 
-#include "cartographer/mapping/local_slam_result_data.h"
-#include "cartographer/mapping/trajectory_builder_interface.h"
 #include "cartographer/sensor/fixed_frame_pose_data.h"
 #include "cartographer/sensor/imu_data.h"
-#include "cartographer/sensor/landmark_data.h"
 #include "cartographer/sensor/odometry_data.h"
 #include "cartographer/sensor/timed_point_cloud_data.h"
 #include "cartographer_grpc/proto/map_builder_service.pb.h"
 
 namespace cartographer_grpc {
-namespace sensor {
+namespace mapping {
 
 void CreateSensorMetadata(const std::string& sensor_id, int trajectory_id,
                           proto::SensorMetadata* proto);
-
 void CreateAddFixedFramePoseDataRequest(
     const std::string& sensor_id, int trajectory_id,
     const cartographer::sensor::proto::FixedFramePoseData&
@@ -50,24 +46,8 @@ void CreateAddRangeFinderDataRequest(
     const cartographer::sensor::proto::TimedPointCloudData&
         timed_point_cloud_data,
     proto::AddRangefinderDataRequest* proto);
-void CreateAddLandmarkDataRequest(
-    const std::string& sensor_id, int trajectory_id,
-    const cartographer::sensor::proto::LandmarkData& landmark_data,
-    proto::AddLandmarkDataRequest* proto);
-void CreateAddLocalSlamResultDataRequest(
-    const std::string& sensor_id, int trajectory_id,
-    cartographer::common::Time time, int starting_submap_index,
-    const cartographer::mapping::TrajectoryBuilderInterface::InsertionResult&
-        insertion_result,
-    proto::AddLocalSlamResultDataRequest* proto);
 
-proto::SensorId ToProto(
-    const cartographer::mapping::TrajectoryBuilderInterface::SensorId&
-        sensor_id);
-cartographer::mapping::TrajectoryBuilderInterface::SensorId FromProto(
-    const proto::SensorId& proto);
-
-}  // namespace sensor
+}  // namespace mapping
 }  // namespace cartographer_grpc
 
 #endif  // CARTOGRAPHER_GRPC_SENSOR_SERIALIZATION_H

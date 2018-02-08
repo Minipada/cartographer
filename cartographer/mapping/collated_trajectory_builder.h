@@ -20,8 +20,8 @@
 #include <chrono>
 #include <map>
 #include <memory>
-#include <set>
 #include <string>
+#include <unordered_set>
 
 #include "cartographer/common/port.h"
 #include "cartographer/common/rate_timer.h"
@@ -38,11 +38,9 @@ namespace mapping {
 // a mapping::TrajectoryBuilderInterface which is common for 2D and 3D.
 class CollatedTrajectoryBuilder : public TrajectoryBuilderInterface {
  public:
-  using SensorId = TrajectoryBuilderInterface::SensorId;
-
   CollatedTrajectoryBuilder(
       sensor::CollatorInterface* sensor_collator, int trajectory_id,
-      const std::set<SensorId>& expected_sensor_ids,
+      const std::unordered_set<std::string>& expected_sensor_ids,
       std::unique_ptr<TrajectoryBuilderInterface> wrapped_trajectory_builder);
   ~CollatedTrajectoryBuilder() override;
 
@@ -71,12 +69,6 @@ class CollatedTrajectoryBuilder : public TrajectoryBuilderInterface {
       const sensor::FixedFramePoseData& fixed_frame_pose_data) override {
     AddData(sensor::MakeDispatchable(sensor_id, fixed_frame_pose_data));
   }
-
-  void AddSensorData(const std::string& sensor_id,
-                     const sensor::LandmarkData& landmark_data) override {
-    AddData(sensor::MakeDispatchable(sensor_id, landmark_data));
-  }
-
   void AddLocalSlamResultData(std::unique_ptr<mapping::LocalSlamResultData>
                                   local_slam_result_data) override {
     AddData(std::move(local_slam_result_data));

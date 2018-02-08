@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef CARTOGRAPHER_MAPPING_POSE_GRAPH_CERES_POSE_H_
-#define CARTOGRAPHER_MAPPING_POSE_GRAPH_CERES_POSE_H_
+#ifndef CARTOGRAPHER_MAPPING_3D_CERES_POSE_H_
+#define CARTOGRAPHER_MAPPING_3D_CERES_POSE_H_
 
 #include <array>
 #include <memory>
@@ -25,8 +25,7 @@
 #include "ceres/ceres.h"
 
 namespace cartographer {
-namespace mapping {
-namespace pose_graph {
+namespace mapping_3d {
 
 class CeresPose {
  public:
@@ -50,8 +49,7 @@ class CeresPose {
   std::shared_ptr<Data> data_;
 };
 
-}  // namespace pose_graph
-}  // namespace mapping
+}  // namespace mapping_3d
 }  // namespace cartographer
 
-#endif  // CARTOGRAPHER_MAPPING_POSE_GRAPH_CERES_POSE_H_
+#endif  // CARTOGRAPHER_MAPPING_3D_CERES_POSE_H_

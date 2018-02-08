@@ -17,8 +17,8 @@
 #ifndef CARTOGRAPHER_MAPPING_MAP_BUILDER_INTERFACE_H_
 #define CARTOGRAPHER_MAPPING_MAP_BUILDER_INTERFACE_H_
 
-#include <set>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "Eigen/Geometry"
@@ -42,8 +42,6 @@ class MapBuilderInterface {
   using LocalSlamResultCallback =
       TrajectoryBuilderInterface::LocalSlamResultCallback;
 
-  using SensorId = TrajectoryBuilderInterface::SensorId;
-
   MapBuilderInterface() {}
   virtual ~MapBuilderInterface() {}
 
@@ -52,15 +50,13 @@ class MapBuilderInterface {
 
   // Creates a new trajectory builder and returns its index.
   virtual int AddTrajectoryBuilder(
-      const std::set<SensorId>& expected_sensor_ids,
+      const std::unordered_set<std::string>& expected_sensor_ids,
       const proto::TrajectoryBuilderOptions& trajectory_options,
       LocalSlamResultCallback local_slam_result_callback) = 0;
 
   // Creates a new trajectory and returns its index. Querying the trajectory
   // builder for it will return 'nullptr'.
-  virtual int AddTrajectoryForDeserialization(
-      const proto::TrajectoryBuilderOptionsWithSensorIds&
-          options_with_sensor_ids_proto) = 0;
+  virtual int AddTrajectoryForDeserialization() = 0;
 
   // Returns the 'TrajectoryBuilderInterface' corresponding to the specified
   // 'trajectory_id' or 'nullptr' if the trajectory has no corresponding
@@ -78,17 +74,14 @@ class MapBuilderInterface {
                                     proto::SubmapQuery::Response* response) = 0;
 
   // Serializes the current state to a proto stream.
-  virtual void SerializeState(io::ProtoStreamWriterInterface* writer) = 0;
+  virtual void SerializeState(io::ProtoStreamWriter* writer) = 0;
 
   // Loads submaps from a proto stream into a new frozen trajectory.
-  virtual void LoadMap(io::ProtoStreamReaderInterface* reader) = 0;
+  virtual void LoadMap(io::ProtoStreamReader* reader) = 0;
 
   virtual int num_trajectory_builders() const = 0;
 
   virtual mapping::PoseGraphInterface* pose_graph() = 0;
-
-  virtual const std::vector<proto::TrajectoryBuilderOptionsWithSensorIds>&
-  GetAllTrajectoryBuilderOptions() const = 0;
 };
 
 }  // namespace mapping

@@ -17,10 +17,6 @@
 #ifndef CARTOGRAPHER_GRPC_HANDLERS_GET_LOCAL_TO_GLOBAL_TRANSFORM_HANDLER_H
 #define CARTOGRAPHER_GRPC_HANDLERS_GET_LOCAL_TO_GLOBAL_TRANSFORM_HANDLER_H
 
-#include "cartographer_grpc/framework/rpc_handler.h"
-#include "cartographer_grpc/proto/map_builder_service.pb.h"
-#include "google/protobuf/empty.pb.h"
-
 namespace cartographer_grpc {
 namespace handlers {
 
@@ -28,12 +24,19 @@ class GetLocalToGlobalTransformHandler
     : public framework::RpcHandler<proto::GetLocalToGlobalTransformRequest,
                                    proto::GetLocalToGlobalTransformResponse> {
  public:
-  std::string method_name() const override {
-    return "/cartographer_grpc.proto.MapBuilderService/"
-           "GetLocalToGlobalTransform";
-  }
   void OnRequest(
-      const proto::GetLocalToGlobalTransformRequest& request) override;
+      const proto::GetLocalToGlobalTransformRequest& request) override {
+    auto response = cartographer::common::make_unique<
+        proto::GetLocalToGlobalTransformResponse>();
+    auto local_to_global =
+        GetContext<MapBuilderServer::MapBuilderContext>()
+            ->map_builder()
+            .pose_graph()
+            ->GetLocalToGlobalTransform(request.trajectory_id());
+    *response->mutable_local_to_global() =
+        cartographer::transform::ToProto(local_to_global);
+    Send(std::move(response));
+  }
 };
 
 }  // namespace handlers

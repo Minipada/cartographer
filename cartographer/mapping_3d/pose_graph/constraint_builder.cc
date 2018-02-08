@@ -172,7 +172,7 @@ void ConstraintBuilder::ComputeConstraint(
     const mapping::TrajectoryNode::Data* const constant_data,
     const transform::Rigid3d& global_node_pose,
     const transform::Rigid3d& global_submap_pose,
-    std::unique_ptr<Constraint>* constraint) {
+    std::unique_ptr<OptimizationProblem::Constraint>* constraint) {
   const SubmapScanMatcher* const submap_scan_matcher =
       GetSubmapScanMatcher(submap_id);
 
@@ -229,12 +229,12 @@ void ConstraintBuilder::ComputeConstraint(
                               submap_scan_matcher->low_resolution_hybrid_grid}},
                             &constraint_transform, &unused_summary);
 
-  constraint->reset(new Constraint{
+  constraint->reset(new OptimizationProblem::Constraint{
       submap_id,
       node_id,
       {constraint_transform, options_.loop_closure_translation_weight(),
        options_.loop_closure_rotation_weight()},
-      Constraint::INTER_SUBMAP});
+      OptimizationProblem::Constraint::INTER_SUBMAP});
 
   if (options_.log_matches()) {
     std::ostringstream info;
@@ -244,10 +244,8 @@ void ConstraintBuilder::ComputeConstraint(
     if (match_full_submap) {
       info << " matches";
     } else {
-      // Compute the difference between (submap i <- node j) according to loop
-      // closure ('constraint_transform') and according to global SLAM state.
-      const transform::Rigid3d difference = global_node_pose.inverse() *
-                                            global_submap_pose *
+      const transform::Rigid3d difference = global_submap_pose.inverse() *
+                                            global_node_pose *
                                             constraint_transform;
       info << " differs by translation " << std::setprecision(2)
            << difference.translation().norm() << " rotation "
@@ -270,7 +268,8 @@ void ConstraintBuilder::FinishComputation(const int computation_index) {
     if (pending_computations_.empty()) {
       CHECK_EQ(submap_queued_work_items_.size(), 0);
       if (when_done_ != nullptr) {
-        for (const std::unique_ptr<Constraint>& constraint : constraints_) {
+        for (const std::unique_ptr<OptimizationProblem::Constraint>&
+                 constraint : constraints_) {
           if (constraint != nullptr) {
             result.push_back(*constraint);
           }

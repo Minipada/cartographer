@@ -21,14 +21,7 @@
 
 #include "cartographer/mapping/local_slam_result_data.h"
 #include "cartographer/mapping/trajectory_builder_interface.h"
-#include "cartographer_grpc/framework/client.h"
-#include "cartographer_grpc/handlers/add_fixed_frame_pose_data_handler.h"
-#include "cartographer_grpc/handlers/add_imu_data_handler.h"
-#include "cartographer_grpc/handlers/add_landmark_data_handler.h"
-#include "cartographer_grpc/handlers/add_local_slam_result_data_handler.h"
-#include "cartographer_grpc/handlers/add_odometry_data_handler.h"
-#include "cartographer_grpc/handlers/add_rangefinder_data_handler.h"
-#include "cartographer_grpc/handlers/receive_local_slam_results_handler.h"
+#include "cartographer_grpc/proto/map_builder_service.grpc.pb.h"
 #include "grpc++/grpc++.h"
 
 namespace cartographer_grpc {
@@ -55,34 +48,36 @@ class TrajectoryBuilderStub
   void AddSensorData(const std::string& sensor_id,
                      const cartographer::sensor::FixedFramePoseData&
                          fixed_frame_pose) override;
-  void AddSensorData(
-      const std::string& sensor_id,
-      const cartographer::sensor::LandmarkData& landmark_data) override;
   void AddLocalSlamResultData(
       std::unique_ptr<cartographer::mapping::LocalSlamResultData>
           local_slam_result_data) override;
 
  private:
-  static void RunLocalSlamResultsReader(
-      framework::Client<handlers::ReceiveLocalSlamResultsHandler>*
-          client_reader,
+  template <typename RequestType>
+  struct SensorClientWriter {
+    grpc::ClientContext client_context;
+    std::unique_ptr<grpc::ClientWriter<RequestType>> client_writer;
+    google::protobuf::Empty response;
+  };
+  struct LocalSlamResultReader {
+    grpc::ClientContext client_context;
+    std::unique_ptr<grpc::ClientReader<proto::ReceiveLocalSlamResultsResponse>>
+        client_reader;
+    std::unique_ptr<std::thread> thread;
+  };
+
+  static void RunLocalSlamResultReader(
+      grpc::ClientReader<proto::ReceiveLocalSlamResultsResponse>* client_reader,
       LocalSlamResultCallback local_slam_result_callback);
 
   std::shared_ptr<grpc::Channel> client_channel_;
   const int trajectory_id_;
-  std::unique_ptr<framework::Client<handlers::AddRangefinderDataHandler>>
-      add_rangefinder_client_;
-  std::unique_ptr<framework::Client<handlers::AddImuDataHandler>>
-      add_imu_client_;
-  std::unique_ptr<framework::Client<handlers::AddOdometryDataHandler>>
-      add_odometry_client_;
-  std::unique_ptr<framework::Client<handlers::AddFixedFramePoseDataHandler>>
-      add_fixed_frame_pose_client_;
-  std::unique_ptr<framework::Client<handlers::AddLandmarkDataHandler>>
-      add_landmark_client_;
-  framework::Client<handlers::ReceiveLocalSlamResultsHandler>
-      receive_local_slam_results_client_;
-  std::unique_ptr<std::thread> receive_local_slam_results_thread_;
+  std::unique_ptr<proto::MapBuilderService::Stub> stub_;
+  SensorClientWriter<proto::AddRangefinderDataRequest> rangefinder_writer_;
+  SensorClientWriter<proto::AddImuDataRequest> imu_writer_;
+  SensorClientWriter<proto::AddOdometryDataRequest> odometry_writer_;
+  SensorClientWriter<proto::AddFixedFramePoseDataRequest> fixed_frame_writer_;
+  LocalSlamResultReader local_slam_result_reader_;
 };
 
 }  // namespace mapping

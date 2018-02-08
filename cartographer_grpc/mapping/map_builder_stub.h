@@ -22,6 +22,7 @@
 #include "cartographer/mapping/map_builder_interface.h"
 #include "cartographer_grpc/mapping/pose_graph_stub.h"
 #include "cartographer_grpc/mapping/trajectory_builder_stub.h"
+#include "cartographer_grpc/proto/map_builder_service.grpc.pb.h"
 #include "grpc++/grpc++.h"
 
 namespace cartographer_grpc {
@@ -35,30 +36,25 @@ class MapBuilderStub : public cartographer::mapping::MapBuilderInterface {
   MapBuilderStub& operator=(const MapBuilderStub&) = delete;
 
   int AddTrajectoryBuilder(
-      const std::set<SensorId>& expected_sensor_ids,
+      const std::unordered_set<std::string>& expected_sensor_ids,
       const cartographer::mapping::proto::TrajectoryBuilderOptions&
           trajectory_options,
       LocalSlamResultCallback local_slam_result_callback) override;
-  int AddTrajectoryForDeserialization(
-      const cartographer::mapping::proto::TrajectoryBuilderOptionsWithSensorIds&
-          options_with_sensor_ids_proto) override;
+  int AddTrajectoryForDeserialization() override;
   cartographer::mapping::TrajectoryBuilderInterface* GetTrajectoryBuilder(
       int trajectory_id) const override;
   void FinishTrajectory(int trajectory_id) override;
   std::string SubmapToProto(
       const cartographer::mapping::SubmapId& submap_id,
       cartographer::mapping::proto::SubmapQuery::Response* response) override;
-  void SerializeState(
-      cartographer::io::ProtoStreamWriterInterface* writer) override;
-  void LoadMap(cartographer::io::ProtoStreamReaderInterface* reader) override;
+  void SerializeState(cartographer::io::ProtoStreamWriter* writer) override;
+  void LoadMap(cartographer::io::ProtoStreamReader* reader) override;
   int num_trajectory_builders() const override;
   cartographer::mapping::PoseGraphInterface* pose_graph() override;
-  const std::vector<
-      cartographer::mapping::proto::TrajectoryBuilderOptionsWithSensorIds>&
-  GetAllTrajectoryBuilderOptions() const override;
 
  private:
   std::shared_ptr<grpc::Channel> client_channel_;
+  std::unique_ptr<proto::MapBuilderService::Stub> service_stub_;
   PoseGraphStub pose_graph_stub_;
   std::map<int, std::unique_ptr<TrajectoryBuilderStub>>
       trajectory_builder_stubs_;

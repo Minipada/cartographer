@@ -21,7 +21,6 @@ Cartographer
    :hidden:
 
    configuration
-   evaluation
    terminology
 
 `Cartographer`_ is a system that provides real-time simultaneous localization
@@ -65,7 +64,7 @@ with the standalone library. Currently, it is the best available reference.
 
 On Ubuntu 14.04 (Trusty):
 
-.. literalinclude:: ../../scripts/install_debs_cmake.sh
+.. literalinclude:: ../../scripts/install_debs.sh
   :language: bash
   :lines: 20-
 
@@ -77,7 +76,7 @@ On Ubuntu 14.04 (Trusty):
   :language: bash
   :lines: 20-
 
-.. literalinclude:: ../../scripts/install_cartographer_cmake.sh
+.. literalinclude:: ../../scripts/install_cartographer.sh
   :language: bash
   :lines: 20-
 

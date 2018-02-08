@@ -212,28 +212,25 @@ Submap::Submap(const mapping::proto::Submap3D& proto)
       low_resolution_hybrid_grid_(
           common::make_unique<HybridGrid>(proto.low_resolution_hybrid_grid())) {
   SetNumRangeData(proto.num_range_data());
-  SetFinished(proto.finished());
+  finished_ = proto.finished();
 }
 
-void Submap::ToProto(mapping::proto::Submap* const proto,
-                     bool include_probability_grid_data) const {
+void Submap::ToProto(mapping::proto::Submap* const proto) const {
   auto* const submap_3d = proto->mutable_submap_3d();
   *submap_3d->mutable_local_pose() = transform::ToProto(local_pose());
   submap_3d->set_num_range_data(num_range_data());
-  submap_3d->set_finished(finished());
-  if (include_probability_grid_data) {
-    *submap_3d->mutable_high_resolution_hybrid_grid() =
-        high_resolution_hybrid_grid().ToProto();
-    *submap_3d->mutable_low_resolution_hybrid_grid() =
-        low_resolution_hybrid_grid().ToProto();
-  }
+  submap_3d->set_finished(finished_);
+  *submap_3d->mutable_high_resolution_hybrid_grid() =
+      high_resolution_hybrid_grid().ToProto();
+  *submap_3d->mutable_low_resolution_hybrid_grid() =
+      low_resolution_hybrid_grid().ToProto();
 }
 
 void Submap::UpdateFromProto(const mapping::proto::Submap& proto) {
   CHECK(proto.has_submap_3d());
   const auto& submap_3d = proto.submap_3d();
   SetNumRangeData(submap_3d.num_range_data());
-  SetFinished(submap_3d.finished());
+  finished_ = submap_3d.finished();
   if (submap_3d.has_high_resolution_hybrid_grid()) {
     high_resolution_hybrid_grid_ =
         submap_3d.has_high_resolution_hybrid_grid()
@@ -264,7 +261,7 @@ void Submap::ToResponseProto(
 void Submap::InsertRangeData(const sensor::RangeData& range_data,
                              const RangeDataInserter& range_data_inserter,
                              const int high_resolution_max_range) {
-  CHECK(!finished());
+  CHECK(!finished_);
   const sensor::RangeData transformed_range_data = sensor::TransformRangeData(
       range_data, local_pose().inverse().cast<float>());
   range_data_inserter.Insert(
@@ -277,8 +274,8 @@ void Submap::InsertRangeData(const sensor::RangeData& range_data,
 }
 
 void Submap::Finish() {
-  CHECK(!finished());
-  SetFinished(true);
+  CHECK(!finished_);
+  finished_ = true;
 }
 
 ActiveSubmaps::ActiveSubmaps(const proto::SubmapsOptions& options)

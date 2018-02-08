@@ -17,8 +17,11 @@
 #ifndef CARTOGRAPHER_GRPC_HANDLERS_ADD_FIXED_FRAME_POSE_DATA_HANDLER_H
 #define CARTOGRAPHER_GRPC_HANDLERS_ADD_FIXED_FRAME_POSE_DATA_HANDLER_H
 
+#include "cartographer/common/make_unique.h"
 #include "cartographer_grpc/framework/rpc_handler.h"
+#include "cartographer_grpc/map_builder_server.h"
 #include "cartographer_grpc/proto/map_builder_service.pb.h"
+#include "cartographer_grpc/sensor/serialization.h"
 #include "google/protobuf/empty.pb.h"
 
 namespace cartographer_grpc {
@@ -29,11 +32,36 @@ class AddFixedFramePoseDataHandler
           framework::Stream<proto::AddFixedFramePoseDataRequest>,
           google::protobuf::Empty> {
  public:
-  std::string method_name() const override {
-    return "/cartographer_grpc.proto.MapBuilderService/AddFixedFramePoseData";
+  void OnRequest(const proto::AddFixedFramePoseDataRequest &request) override {
+    // The 'BlockingQueue' returned by 'sensor_data_queue()' is already
+    // thread-safe. Therefore it suffices to get an unsynchronized reference to
+    // the 'MapBuilderContext'.
+    GetUnsynchronizedContext<MapBuilderServer::MapBuilderContext>()
+        ->EnqueueSensorData(
+            request.sensor_metadata().trajectory_id(),
+            request.sensor_metadata().sensor_id(),
+            cartographer::sensor::FromProto(request.fixed_frame_pose_data()));
+
+    // The 'BlockingQueue' in 'LocalTrajectoryUploader' is thread-safe.
+    // Therefore it suffices to get an unsynchronized reference to the
+    // 'MapBuilderContext'.
+    if (GetUnsynchronizedContext<MapBuilderServer::MapBuilderContext>()
+            ->local_trajectory_uploader()) {
+      auto data_request = cartographer::common::make_unique<
+          proto::AddFixedFramePoseDataRequest>();
+      mapping::CreateAddFixedFramePoseDataRequest(
+          request.sensor_metadata().sensor_id(),
+          request.sensor_metadata().trajectory_id(),
+          request.fixed_frame_pose_data(), data_request.get());
+      GetUnsynchronizedContext<MapBuilderServer::MapBuilderContext>()
+          ->local_trajectory_uploader()
+          ->EnqueueDataRequest(std::move(data_request));
+    }
   }
-  void OnRequest(const proto::AddFixedFramePoseDataRequest &request) override;
-  void OnReadsDone() override;
+
+  void OnReadsDone() override {
+    Send(cartographer::common::make_unique<google::protobuf::Empty>());
+  }
 };
 
 }  // namespace handlers

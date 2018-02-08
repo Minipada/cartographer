@@ -29,7 +29,6 @@
 #include "cartographer/mapping/submaps.h"
 #include "cartographer/sensor/fixed_frame_pose_data.h"
 #include "cartographer/sensor/imu_data.h"
-#include "cartographer/sensor/landmark_data.h"
 #include "cartographer/sensor/odometry_data.h"
 #include "cartographer/sensor/timed_point_cloud_data.h"
 
@@ -62,30 +61,6 @@ class TrajectoryBuilderInterface {
                          sensor::RangeData /* in local frame */,
                          std::unique_ptr<const InsertionResult>)>;
 
-  struct SensorId {
-    enum class SensorType {
-      RANGE = 0,
-      IMU,
-      ODOMETRY,
-      FIXED_FRAME_POSE,
-      LANDMARK,
-      LOCAL_SLAM_RESULT
-    };
-
-    SensorType type;
-    std::string id;
-
-    bool operator==(const SensorId& other) const {
-      return std::forward_as_tuple(type, id) ==
-             std::forward_as_tuple(other.type, other.id);
-    }
-
-    bool operator<(const SensorId& other) const {
-      return std::forward_as_tuple(type, id) <
-             std::forward_as_tuple(other.type, other.id);
-    }
-  };
-
   TrajectoryBuilderInterface() {}
   virtual ~TrajectoryBuilderInterface() {}
 
@@ -103,18 +78,13 @@ class TrajectoryBuilderInterface {
   virtual void AddSensorData(
       const std::string& sensor_id,
       const sensor::FixedFramePoseData& fixed_frame_pose) = 0;
-  virtual void AddSensorData(const std::string& sensor_id,
-                             const sensor::LandmarkData& landmark_data) = 0;
+
   // Allows to directly add local SLAM results to the 'PoseGraph'. Note that it
   // is invalid to add local SLAM results for a trajectory that has a
   // 'LocalTrajectoryBuilder'.
   virtual void AddLocalSlamResultData(
       std::unique_ptr<mapping::LocalSlamResultData> local_slam_result_data) = 0;
 };
-
-proto::SensorId ToProto(const TrajectoryBuilderInterface::SensorId& sensor_id);
-TrajectoryBuilderInterface::SensorId FromProto(
-    const proto::SensorId& sensor_id_proto);
 
 }  // namespace mapping
 }  // namespace cartographer

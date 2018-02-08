@@ -49,10 +49,7 @@ class ExecutionContext {
     cartographer::common::MutexLocker locker_;
     ExecutionContext* execution_context_;
   };
-  ExecutionContext() = default;
   virtual ~ExecutionContext() = default;
-  ExecutionContext(const ExecutionContext&) = delete;
-  ExecutionContext& operator=(const ExecutionContext&) = delete;
   cartographer::common::Mutex* lock() { return &lock_; }
 
  private:

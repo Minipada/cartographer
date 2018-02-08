@@ -15,13 +15,8 @@
  */
 
 #include "cartographer_grpc/mapping/map_builder_stub.h"
-#include "cartographer_grpc/handlers/add_trajectory_handler.h"
-#include "cartographer_grpc/handlers/finish_trajectory_handler.h"
-#include "cartographer_grpc/handlers/get_submap_handler.h"
-#include "cartographer_grpc/handlers/load_map_handler.h"
-#include "cartographer_grpc/handlers/write_map_handler.h"
+
 #include "cartographer_grpc/proto/map_builder_service.pb.h"
-#include "cartographer_grpc/sensor/serialization.h"
 #include "glog/logging.h"
 
 namespace cartographer_grpc {
@@ -30,38 +25,36 @@ namespace mapping {
 MapBuilderStub::MapBuilderStub(const std::string& server_address)
     : client_channel_(grpc::CreateChannel(server_address,
                                           grpc::InsecureChannelCredentials())),
-      pose_graph_stub_(client_channel_) {}
+      service_stub_(proto::MapBuilderService::NewStub(client_channel_)),
+      pose_graph_stub_(client_channel_, service_stub_.get()) {}
 
 int MapBuilderStub::AddTrajectoryBuilder(
-    const std::set<SensorId>& expected_sensor_ids,
+    const std::unordered_set<std::string>& expected_sensor_ids,
     const cartographer::mapping::proto::TrajectoryBuilderOptions&
         trajectory_options,
     LocalSlamResultCallback local_slam_result_callback) {
+  grpc::ClientContext client_context;
   proto::AddTrajectoryRequest request;
+  proto::AddTrajectoryResponse result;
   *request.mutable_trajectory_builder_options() = trajectory_options;
   for (const auto& sensor_id : expected_sensor_ids) {
-    *request.add_expected_sensor_ids() = sensor::ToProto(sensor_id);
+    *request.add_expected_sensor_ids() = sensor_id;
   }
-  framework::Client<handlers::AddTrajectoryHandler> client(
-      client_channel_,
-      framework::CreateLimitedBackoffStrategy(
-          cartographer::common::FromMilliseconds(100), 2.f, 5));
-  CHECK(client.Write(request));
+  grpc::Status status =
+      service_stub_->AddTrajectory(&client_context, request, &result);
+  CHECK(status.ok());
 
   // Construct trajectory builder stub.
   trajectory_builder_stubs_.emplace(
-      std::piecewise_construct,
-      std::forward_as_tuple(client.response().trajectory_id()),
+      std::piecewise_construct, std::forward_as_tuple(result.trajectory_id()),
       std::forward_as_tuple(cartographer::common::make_unique<
                             cartographer_grpc::mapping::TrajectoryBuilderStub>(
-          client_channel_, client.response().trajectory_id(),
+          client_channel_, result.trajectory_id(),
           local_slam_result_callback)));
-  return client.response().trajectory_id();
+  return result.trajectory_id();
 }
 
-int MapBuilderStub::AddTrajectoryForDeserialization(
-    const cartographer::mapping::proto::TrajectoryBuilderOptionsWithSensorIds&
-        options_with_sensor_ids_proto) {
+int MapBuilderStub::AddTrajectoryForDeserialization() {
   LOG(FATAL) << "Not implemented";
 }
 
@@ -71,10 +64,13 @@ MapBuilderStub::GetTrajectoryBuilder(int trajectory_id) const {
 }
 
 void MapBuilderStub::FinishTrajectory(int trajectory_id) {
+  grpc::ClientContext client_context;
   proto::FinishTrajectoryRequest request;
+  google::protobuf::Empty response;
   request.set_trajectory_id(trajectory_id);
-  framework::Client<handlers::FinishTrajectoryHandler> client(client_channel_);
-  CHECK(client.Write(request));
+  grpc::Status status =
+      service_stub_->FinishTrajectory(&client_context, request, &response);
+  CHECK(status.ok());
   trajectory_builder_stubs_.erase(trajectory_id);
 }
 
@@ -82,72 +78,30 @@ std::string MapBuilderStub::SubmapToProto(
     const cartographer::mapping::SubmapId& submap_id,
     cartographer::mapping::proto::SubmapQuery::Response*
         submap_query_response) {
+  grpc::ClientContext client_context;
   proto::GetSubmapRequest request;
   submap_id.ToProto(request.mutable_submap_id());
-  framework::Client<handlers::GetSubmapHandler> client(client_channel_);
-  CHECK(client.Write(request));
-  submap_query_response->CopyFrom(client.response().submap_query_response());
-  return client.response().error_msg();
+  proto::GetSubmapResponse response;
+  CHECK(service_stub_->GetSubmap(&client_context, request, &response).ok());
+  submap_query_response->CopyFrom(response.submap_query_response());
+  return response.error_msg();
 }
 
 void MapBuilderStub::SerializeState(
-    cartographer::io::ProtoStreamWriterInterface* writer) {
-  google::protobuf::Empty request;
-  framework::Client<handlers::WriteMapHandler> client(client_channel_);
-  CHECK(client.Write(request));
-  proto::WriteMapResponse response;
-  while (client.Read(&response)) {
-    // writer->WriteProto(response);
-    switch (response.map_chunk_case()) {
-      case proto::WriteMapResponse::kPoseGraph:
-        writer->WriteProto(response.pose_graph());
-        break;
-      case proto::WriteMapResponse::kAllTrajectoryBuilderOptions:
-        writer->WriteProto(response.all_trajectory_builder_options());
-        break;
-      case proto::WriteMapResponse::kSerializedData:
-        writer->WriteProto(response.serialized_data());
-        break;
-      default:
-        LOG(FATAL) << "Unhandled message type";
-    }
-  }
-  CHECK(writer->Close());
+    cartographer::io::ProtoStreamWriter* writer) {
+  LOG(FATAL) << "Not implemented";
 }
 
-void MapBuilderStub::LoadMap(
-    cartographer::io::ProtoStreamReaderInterface* reader) {
-  framework::Client<handlers::LoadMapHandler> client(client_channel_);
-  // Request with a PoseGraph proto is sent first.
-  {
-    proto::LoadMapRequest request;
-    CHECK(reader->ReadProto(request.mutable_pose_graph()));
-    CHECK(reader->ReadProto(request.mutable_all_trajectory_builder_options()));
-    CHECK(client.Write(request));
-  }
-  // Multiple requests with SerializedData are sent after.
-  proto::LoadMapRequest request;
-  while (reader->ReadProto(request.mutable_serialized_data())) {
-    CHECK(client.Write(request));
-  }
-
-  CHECK(reader->eof());
-  CHECK(client.WritesDone());
-  CHECK(client.Finish().ok());
+void MapBuilderStub::LoadMap(cartographer::io::ProtoStreamReader* reader) {
+  LOG(FATAL) << "Not implemented";
 }
 
 int MapBuilderStub::num_trajectory_builders() const {
-  return trajectory_builder_stubs_.size();
+  LOG(FATAL) << "Not implemented";
 }
 
 cartographer::mapping::PoseGraphInterface* MapBuilderStub::pose_graph() {
   return &pose_graph_stub_;
-}
-
-const std::vector<
-    cartographer::mapping::proto::TrajectoryBuilderOptionsWithSensorIds>&
-MapBuilderStub::GetAllTrajectoryBuilderOptions() const {
-  LOG(FATAL) << "Not implemented";
 }
 
 }  // namespace mapping

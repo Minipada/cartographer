@@ -172,22 +172,6 @@ void PoseGraph::AddFixedFramePoseData(
   LOG(FATAL) << "Not yet implemented for 2D.";
 }
 
-void PoseGraph::AddLandmarkData(int trajectory_id,
-                                const sensor::LandmarkData& landmark_data)
-    EXCLUDES(mutex_) {
-  common::MutexLocker locker(&mutex_);
-  for (const auto& observation : landmark_data.landmark_observations) {
-    landmark_nodes_[observation.id].landmark_observations.emplace_back(
-        PoseGraph::LandmarkNode::LandmarkObservation{
-            trajectory_id,
-            landmark_data.time,
-            observation.landmark_to_tracking_transform,
-            observation.translation_weight,
-            observation.rotation_weight,
-        });
-  }
-}
-
 void PoseGraph::ComputeConstraint(const mapping::NodeId& node_id,
                                   const mapping::SubmapId& submap_id) {
   CHECK(submap_data_.at(submap_id).state == SubmapState::kFinished);
@@ -201,10 +185,10 @@ void PoseGraph::ComputeConstraint(const mapping::NodeId& node_id,
           last_connection_time +
               common::FromSeconds(
                   options_.global_constraint_search_after_n_seconds())) {
-    // If the node and the submap belong to the same trajectory or if there
-    // has been a recent global constraint that ties that node's trajectory to
-    // the submap's trajectory, it suffices to do a match constrained to a
-    // local search window.
+    // If the node and the submap belong to the same trajectory or if there has
+    // been a recent global constraint that ties that node's trajectory to the
+    // submap's trajectory, it suffices to do a match constrained to a local
+    // search window.
     const transform::Rigid2d initial_relative_pose =
         optimization_problem_.submap_data()
             .at(submap_id)
@@ -253,8 +237,8 @@ void PoseGraph::ComputeConstraintsForNode(
       constant_data->gravity_alignment);
   for (size_t i = 0; i < insertion_submaps.size(); ++i) {
     const mapping::SubmapId submap_id = submap_ids[i];
-    // Even if this was the last node added to 'submap_id', the submap will
-    // only be marked as finished in 'submap_data_' further below.
+    // Even if this was the last node added to 'submap_id', the submap will only
+    // be marked as finished in 'submap_data_' further below.
     CHECK(submap_data_.at(submap_id).state == SubmapState::kActive);
     submap_data_.at(submap_id).node_ids.emplace(node_id);
     const transform::Rigid2d constraint_transform =
@@ -547,11 +531,9 @@ void PoseGraph::RunOptimization() {
   }
 
   // No other thread is accessing the optimization_problem_, constraints_ and
-  // frozen_trajectories_ when executing the Solve. Solve is time consuming,
-  // so not taking the mutex before Solve to avoid blocking foreground
-  // processing.
-  optimization_problem_.Solve(constraints_, frozen_trajectories_,
-                              landmark_nodes_);
+  // frozen_trajectories_ when executing the Solve. Solve is time consuming, so
+  // not taking the mutex before Solve to avoid blocking foreground processing.
+  optimization_problem_.Solve(constraints_, frozen_trajectories_);
   common::MutexLocker locker(&mutex_);
 
   const auto& submap_data = optimization_problem_.submap_data();
@@ -604,17 +586,6 @@ PoseGraph::GetTrajectoryNodePoses() {
                                     node_id_data.data.global_pose});
   }
   return node_poses;
-}
-
-std::map<std::string, transform::Rigid3d> PoseGraph::GetLandmarkPoses() {
-  std::map<std::string, transform::Rigid3d> landmark_poses;
-  for (const auto& landmark : landmark_nodes_) {
-    // Landmark without value has not been optimized yet.
-    if (!landmark.second.global_landmark_pose.has_value()) continue;
-    landmark_poses[landmark.first] =
-        landmark.second.global_landmark_pose.value();
-  }
-  return landmark_poses;
 }
 
 sensor::MapByTime<sensor::ImuData> PoseGraph::GetImuData() {

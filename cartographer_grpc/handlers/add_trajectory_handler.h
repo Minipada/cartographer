@@ -17,7 +17,9 @@
 #ifndef CARTOGRAPHER_GRPC_HANDLERS_ADD_TRAJECTORY_HANDLER_H
 #define CARTOGRAPHER_GRPC_HANDLERS_ADD_TRAJECTORY_HANDLER_H
 
+#include "cartographer/common/make_unique.h"
 #include "cartographer_grpc/framework/rpc_handler.h"
+#include "cartographer_grpc/map_builder_server.h"
 #include "cartographer_grpc/proto/map_builder_service.pb.h"
 
 namespace cartographer_grpc {
@@ -27,10 +29,40 @@ class AddTrajectoryHandler
     : public framework::RpcHandler<proto::AddTrajectoryRequest,
                                    proto::AddTrajectoryResponse> {
  public:
-  std::string method_name() const override {
-    return "/cartographer_grpc.proto.MapBuilderService/AddTrajectory";
+  void OnRequest(const proto::AddTrajectoryRequest& request) override {
+    auto local_slam_result_callback =
+        GetUnsynchronizedContext<MapBuilderServer::MapBuilderContext>()
+            ->GetLocalSlamResultCallbackForSubscriptions();
+    std::unordered_set<std::string> expected_sensor_ids(
+        request.expected_sensor_ids().begin(),
+        request.expected_sensor_ids().end());
+    const int trajectory_id =
+        GetContext<MapBuilderServer::MapBuilderContext>()
+            ->map_builder()
+            .AddTrajectoryBuilder(expected_sensor_ids,
+                                  request.trajectory_builder_options(),
+                                  local_slam_result_callback);
+    if (GetUnsynchronizedContext<MapBuilderServer::MapBuilderContext>()
+            ->local_trajectory_uploader()) {
+      auto trajectory_builder_options = request.trajectory_builder_options();
+
+      // Clear the trajectory builder options to convey to the cloud
+      // Cartographer instance that does not need to instantiate a
+      // 'LocalTrajectoryBuilder'.
+      trajectory_builder_options.clear_trajectory_builder_2d_options();
+      trajectory_builder_options.clear_trajectory_builder_3d_options();
+
+      GetContext<MapBuilderServer::MapBuilderContext>()
+          ->local_trajectory_uploader()
+          ->AddTrajectory(trajectory_id, expected_sensor_ids,
+                          trajectory_builder_options);
+    }
+
+    auto response =
+        cartographer::common::make_unique<proto::AddTrajectoryResponse>();
+    response->set_trajectory_id(trajectory_id);
+    Send(std::move(response));
   }
-  void OnRequest(const proto::AddTrajectoryRequest& request) override;
 };
 
 }  // namespace handlers

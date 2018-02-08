@@ -22,6 +22,8 @@ set(CARTOGRAPHER_PATCH_VERSION 0)
 set(CARTOGRAPHER_VERSION ${CARTOGRAPHER_MAJOR_VERSION}.${CARTOGRAPHER_MINOR_VERSION}.${CARTOGRAPHER_PATCH_VERSION})
 set(CARTOGRAPHER_SOVERSION ${CARTOGRAPHER_MAJOR_VERSION}.${CARTOGRAPHER_MINOR_VERSION})
 option(BUILD_GRPC "build Cartographer gRPC support" false)
+# TODO(gaschler): Make this an option.
+set(GRPC_PLUGIN_PATH "/usr/local/bin/grpc_cpp_plugin")
 
 include("${PROJECT_SOURCE_DIR}/cmake/functions.cmake")
 google_initialize_cartographer_project()
@@ -35,6 +37,8 @@ find_package(Protobuf 3.0.0 REQUIRED)
 
 include(FindPkgConfig)
 PKG_SEARCH_MODULE(CAIRO REQUIRED cairo>=1.12.16)
+
+include(../global_config.cmake)
 
 # Only build the documentation if we can find Sphinx.
 find_package(Sphinx)
@@ -113,16 +117,20 @@ if(${BUILD_GRPC})
 
     list(APPEND ALL_GRPC_SERVICE_SRCS "${PROJECT_BINARY_DIR}/${DIR}/${FIL_WE}.pb.cc")
     list(APPEND ALL_GRPC_SERVICE_HDRS "${PROJECT_BINARY_DIR}/${DIR}/${FIL_WE}.pb.h")
+    list(APPEND ALL_GRPC_SERVICE_SRCS "${PROJECT_BINARY_DIR}/${DIR}/${FIL_WE}.grpc.pb.cc")
+    list(APPEND ALL_GRPC_SERVICE_HDRS "${PROJECT_BINARY_DIR}/${DIR}/${FIL_WE}.grpc.pb.h")
 
     add_custom_command(
-      OUTPUT "${PROJECT_BINARY_DIR}/${DIR}/${FIL_WE}.pb.cc"
-             "${PROJECT_BINARY_DIR}/${DIR}/${FIL_WE}.pb.h"
+      OUTPUT "${PROJECT_BINARY_DIR}/${DIR}/${FIL_WE}.grpc.pb.cc"
+             "${PROJECT_BINARY_DIR}/${DIR}/${FIL_WE}.grpc.pb.h"
       COMMAND  ${PROTOBUF_PROTOC_EXECUTABLE}
-      ARGS --cpp_out  ${PROJECT_BINARY_DIR}
+      ARGS --grpc_out  ${PROJECT_BINARY_DIR}
+        --cpp_out  ${PROJECT_BINARY_DIR}
         -I ${PROJECT_SOURCE_DIR}
+        --plugin=protoc-gen-grpc=${GRPC_PLUGIN_PATH}
         ${ABS_FIL}
       DEPENDS ${ABS_FIL}
-      COMMENT "Running C++ protocol buffer compiler on ${ABS_FIL}"
+      COMMENT "Running C++ protocol buffer compiler with gRPC support on ${ABS_FIL}"
       VERBATIM
     )
   endforeach()
@@ -177,7 +185,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC ${CERES_LIBRARIES})
 
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
   "${LUA_INCLUDE_DIR}")
-target_link_libraries(${PROJECT_NAME} PUBLIC ${LUA_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} PUBLIC ${LUA_LIBRARIES} m dl)
 
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
   "${Boost_INCLUDE_DIRS}")

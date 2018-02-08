@@ -20,14 +20,14 @@
 #include "cartographer/mapping/map_builder_interface.h"
 
 #include <memory>
-#include <set>
+#include <unordered_map>
 
 #include "cartographer/common/thread_pool.h"
 #include "cartographer/mapping/pose_graph_interface.h"
 #include "cartographer/mapping/proto/map_builder_options.pb.h"
 #include "cartographer/mapping_2d/pose_graph.h"
 #include "cartographer/mapping_3d/pose_graph.h"
-#include "cartographer/sensor/collator_interface.h"
+#include "cartographer/sensor/collator.h"
 
 namespace cartographer {
 namespace mapping {
@@ -39,20 +39,18 @@ proto::MapBuilderOptions CreateMapBuilderOptions(
 // and a PoseGraph for loop closure.
 class MapBuilder : public MapBuilderInterface {
  public:
-  explicit MapBuilder(const proto::MapBuilderOptions& options);
+  MapBuilder(const proto::MapBuilderOptions& options);
   ~MapBuilder() override;
 
   MapBuilder(const MapBuilder&) = delete;
   MapBuilder& operator=(const MapBuilder&) = delete;
 
   int AddTrajectoryBuilder(
-      const std::set<SensorId>& expected_sensor_ids,
+      const std::unordered_set<std::string>& expected_sensor_ids,
       const proto::TrajectoryBuilderOptions& trajectory_options,
       LocalSlamResultCallback local_slam_result_callback) override;
 
-  int AddTrajectoryForDeserialization(
-      const proto::TrajectoryBuilderOptionsWithSensorIds&
-          options_with_sensor_ids_proto) override;
+  int AddTrajectoryForDeserialization() override;
 
   mapping::TrajectoryBuilderInterface* GetTrajectoryBuilder(
       int trajectory_id) const override;
@@ -62,16 +60,13 @@ class MapBuilder : public MapBuilderInterface {
   std::string SubmapToProto(const SubmapId& submap_id,
                             proto::SubmapQuery::Response* response) override;
 
-  void SerializeState(io::ProtoStreamWriterInterface* writer) override;
+  void SerializeState(io::ProtoStreamWriter* writer) override;
 
-  void LoadMap(io::ProtoStreamReaderInterface* reader) override;
+  void LoadMap(io::ProtoStreamReader* reader) override;
 
   int num_trajectory_builders() const override;
 
   mapping::PoseGraphInterface* pose_graph() override;
-
-  const std::vector<proto::TrajectoryBuilderOptionsWithSensorIds>&
-  GetAllTrajectoryBuilderOptions() const override;
 
  private:
   const proto::MapBuilderOptions options_;
@@ -81,11 +76,9 @@ class MapBuilder : public MapBuilderInterface {
   std::unique_ptr<mapping_3d::PoseGraph> pose_graph_3d_;
   mapping::PoseGraph* pose_graph_;
 
-  std::unique_ptr<sensor::CollatorInterface> sensor_collator_;
+  sensor::Collator sensor_collator_;
   std::vector<std::unique_ptr<mapping::TrajectoryBuilderInterface>>
       trajectory_builders_;
-  std::vector<proto::TrajectoryBuilderOptionsWithSensorIds>
-      all_trajectory_builder_options_;
 };
 
 }  // namespace mapping
