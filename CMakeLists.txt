@@ -38,8 +38,6 @@ find_package(Protobuf 3.0.0 REQUIRED)
 include(FindPkgConfig)
 PKG_SEARCH_MODULE(CAIRO REQUIRED cairo>=1.12.16)
 
-include(../global_config.cmake)
-
 # Only build the documentation if we can find Sphinx.
 find_package(Sphinx)
 if(SPHINX_FOUND)
